@@ -15,7 +15,7 @@ buat agar mudah diimplementasikan oleh junior dev atau model AI yang lebih murah
 
 buat issue.md untuk : 
 
-fix bug, file /home/padi-kering/Documents/KERJA/installer/MyApp_Setup.iss, unknown identifier 'CENTER'
+fix bug, line 161 di file /home/padi-kering/Documents/KERJA/installer/MyApp_Setup.iss column 14s, unknown identifier 'CENTER'
 
 buat langkah langkah yang jelas untuk fix bug ini
 

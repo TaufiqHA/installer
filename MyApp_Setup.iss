@@ -158,7 +158,7 @@ begin
   WizardForm.ClientWidth := 800;
   WizardForm.ClientHeight := 500;
   WizardForm.Color := clBgWindow;
-  WizardForm.Center;
+  WizardForm.Position := poScreenCenter;
   
   // Hide Default UI
   WizardForm.NextButton.Visible := False;
