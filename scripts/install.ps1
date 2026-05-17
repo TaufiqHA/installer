@@ -102,7 +102,8 @@ NODE_ENV=production
 "@
 
     if ($EnvExtra -ne "") {
-        $content += "`n# Extra config`n$EnvExtra"
+        $CleanEnvExtra = $EnvExtra -replace '\[NL\]', "`n"
+        $content += "`n# Extra config`n$CleanEnvExtra"
     }
 
     Set-Content -Path $envFile -Value $content -Encoding UTF8

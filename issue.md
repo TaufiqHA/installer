@@ -1,50 +1,64 @@
-# Bug: Unknown identifier 'OUTERPAGE' in MyApp_Setup.iss
+# Bug: Instalasi Gagal dengan Kode -196608
 
 ## Deskripsi Masalah
-Saat mengkompilasi file Inno Setup (`MyApp_Setup.iss`), terjadi error pada baris 170 kolom 14:
-`unknown identifier 'OUTERPAGE'`
+Saat installer berjalan dan mengeksekusi script instalasi, muncul pesan error:
+`Instalasi Gagal dengan kode: -196608`
 
-Error ini terjadi karena pada Inno Setup (Pascal Script), object `WizardForm` tidak memiliki properti bernama `OuterPage`. Untuk menyembunyikan halaman luar (outer) bawaan dari wizard, nama properti yang benar adalah `OuterNotebook`.
-
-## Lokasi File
-`/home/padi-kering/Documents/KERJA/installer/MyApp_Setup.iss`
+**Penyebab:**
+Error `-196608` (atau `0xFFFD0000`) pada Inno Setup umumnya menandakan gagalnya eksekusi *command-line* akibat *arguments* yang cacat/malformed. Masalah ini terjadi karena komponen `EnvMemo` mengizinkan input teks multi-baris (multiline). Saat Inno Setup meneruskan `EnvMemo.Text` yang berisi karakter baris baru (`#13#10` / CRLF) secara langsung ke dalam parameter `Exec('powershell.exe', ...)`, format command-line menjadi rusak dan gagal diproses oleh Windows.
 
 ## Langkah-langkah Penyelesaian (Untuk Junior Dev / AI Model)
 
-1. Buka file `MyApp_Setup.iss`.
-2. Cari baris **170**. Kodenya akan terlihat seperti ini:
-   ```pascal
-   WizardForm.OuterPage.Visible := False;
-   ```
-3. Ubah kata `OuterPage` menjadi `OuterNotebook`, sehingga kodenya menjadi:
-   ```pascal
-   WizardForm.OuterNotebook.Visible := False;
-   ```
-4. Simpan file `MyApp_Setup.iss`.
-5. Coba lakukan kompilasi ulang (compile) pada Inno Setup untuk memastikan error sudah hilang.
+Untuk memperbaiki bug ini, kita perlu mengubah (replace) karakter baris baru menjadi sebuah *placeholder* (misalnya `[NL]`) di dalam Inno Setup sebelum dieksekusi. Kemudian, pada script PowerShell, kita kembalikan `[NL]` tersebut menjadi baris baru.
 
-## Contoh Perubahan (Diff)
+### 1. Modifikasi `MyApp_Setup.iss`
+**Lokasi File:** `/home/padi-kering/Documents/KERJA/installer/MyApp_Setup.iss`
 
-**Sebelum:**
+1. Cari _procedure_ `RunInstallScript` di bagian `[Code]`.
+2. Tambahkan variabel lokal `SafeEnv: String;`.
+3. Copy isi `EnvMemo.Text` ke `SafeEnv`, lalu ubah karakter `#13#10` menjadi `[NL]`.
+4. Gunakan `SafeEnv` pada penyusunan `Params`.
+
+**Diff Perubahan:**
 ```pascal
-  // Hide Default UI
-  WizardForm.NextButton.Visible := False;
-  WizardForm.BackButton.Visible := False;
-  WizardForm.CancelButton.Visible := False;
-  WizardForm.Bevel1.Visible := False;
-  WizardForm.MainPanel.Visible := False;
-  WizardForm.InnerPage.Visible := False;
-  WizardForm.OuterPage.Visible := False;
+@@ -xxx,xxx @@ procedure RunInstallScript(UpdateMode: Boolean);
+ var
+   ResultCode: Integer;
+   Params: String;
++  SafeEnv: String;
+ begin
+   LogToConsole('Memulai proses instalasi...');
+   
++  SafeEnv := EnvMemo.Text;
++  StringChange(SafeEnv, #13#10, '[NL]');
++
+   Params := '-ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}') + '\install.ps1"' +
+             ' -InstallDir "' + InstallDirEdit.Text + '"' +
+             ' -ZipUrl "' + DownloadUrlMemo.Text + '"' +
+-            ' -EnvExtra "' + EnvMemo.Text + '"';
++            ' -EnvExtra "' + SafeEnv + '"';
 ```
 
-**Sesudah:**
-```pascal
-  // Hide Default UI
-  WizardForm.NextButton.Visible := False;
-  WizardForm.BackButton.Visible := False;
-  WizardForm.CancelButton.Visible := False;
-  WizardForm.Bevel1.Visible := False;
-  WizardForm.MainPanel.Visible := False;
-  WizardForm.InnerPage.Visible := False;
-  WizardForm.OuterNotebook.Visible := False;
+### 2. Modifikasi `scripts/install.ps1`
+**Lokasi File:** `/home/padi-kering/Documents/KERJA/installer/scripts/install.ps1`
+
+1. Cari bagian blok kode `if ($EnvExtra -ne "")` di dalam fungsi yang menangani pembuatan file `.env` (biasanya bernama `Create-Env`).
+2. Gunakan *regex replace* untuk mengubah `[NL]` kembali menjadi karakter newline (`` `n ``).
+
+**Diff Perubahan:**
+```powershell
+@@ -xxx,xxx @@ function Create-Env {
+     # ...
+     if ($EnvExtra -ne "") {
+-        $content += "`n# Extra config`n$EnvExtra"
++        $CleanEnvExtra = $EnvExtra -replace '\[NL\]', "`n"
++        $content += "`n# Extra config`n$CleanEnvExtra"
+     }
+     # ...
 ```
+
+## Verifikasi
+1. Simpan kedua file yang telah diubah.
+2. Lakukan *Compile* ulang (F9) pada Inno Setup.
+3. Jalankan installer, lalu pada bagian input *Environment Variables*, isikan konfigurasi menggunakan lebih dari satu baris (multiline).
+4. Klik Install. Proses harus berjalan sukses (tidak memunculkan error `-196608`) dan pada folder tujuan instalasi, file `.env` harus terbuat dengan format baris baru yang benar sesuai input.

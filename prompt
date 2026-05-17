@@ -15,7 +15,7 @@ buat agar mudah diimplementasikan oleh junior dev atau model AI yang lebih murah
 
 buat issue.md untuk : 
 
-fix bug, line 170 di file /home/padi-kering/Documents/KERJA/installer/MyApp_Setup.iss column 14, unknown identifier 'OUTERPAGE'
+fix bug, instalasi gagal dengan kode : -196608
 
 buat langkah langkah yang jelas untuk fix bug ini
 

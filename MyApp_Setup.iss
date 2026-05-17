@@ -115,13 +115,17 @@ procedure RunInstallScript(UpdateMode: Boolean);
 var
   ResultCode: Integer;
   Params: String;
+  SafeEnv: String;
 begin
   LogToConsole('Memulai proses instalasi...');
+  
+  SafeEnv := EnvMemo.Text;
+  StringChange(SafeEnv, #13#10, '[NL]');
   
   Params := '-ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}') + '\install.ps1"' +
             ' -InstallDir "' + InstallDirEdit.Text + '"' +
             ' -ZipUrl "' + DownloadUrlMemo.Text + '"' +
-            ' -EnvExtra "' + EnvMemo.Text + '"';
+            ' -EnvExtra "' + SafeEnv + '"';
             
   if UpdateMode then
     Params := Params + ' -UpdateMode';
