@@ -63,6 +63,10 @@ var
   TabFreshBtn, TabUpdateBtn: TPanel;
   InstallBtn: TNewButton;
   VersionLabel: TLabel;
+  // Variabel untuk Panel Update
+  UpdateDirEdit: TNewEdit;
+  UpdateUrlMemo: TNewMemo;
+  UpdateBtn: TNewButton;
 
 procedure LogToConsole(Msg: String);
 begin
@@ -157,6 +161,55 @@ begin
   finally
     InstallBtn.Enabled := True;
   end;
+end;
+
+procedure RunUpdateScript;
+var
+  ResultCode: Integer;
+  Params: String;
+  SafeUrl: String;
+begin
+  LogToConsole('Memulai proses update aplikasi...');
+  
+  SafeUrl := UpdateUrlMemo.Text;
+  StringChange(SafeUrl, #13#10, ''); // Bersihkan newline
+  
+  // Ekstrak script
+  ExtractTemporaryFile('install.ps1');
+  
+  // Susun parameter powershell (Tanpa EnvExtra, dengan -UpdateMode)
+  Params := '-ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}') + '\install.ps1"' +
+            ' -InstallDir "' + UpdateDirEdit.Text + '"' +
+            ' -ZipUrl "' + SafeUrl + '"' +
+            ' -UpdateMode';
+            
+  if Exec('powershell.exe', Params, '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if ResultCode = 0 then
+      LogToConsole('Update Selesai!')
+    else
+      LogToConsole('Update Gagal dengan kode: ' + IntToStr(ResultCode));
+  end
+  else
+    LogToConsole('Gagal menjalankan script update.');
+end;
+
+procedure UpdateBtnClick(Sender: TObject);
+begin
+  UpdateBtn.Enabled := False;
+  try
+    RunUpdateScript;
+  finally
+    UpdateBtn.Enabled := True;
+  end;
+end;
+
+procedure UpdateBrowseBtnClick(Sender: TObject);
+var
+  Dir: String;
+begin
+  if BrowseForFolder('Pilih Folder Instalasi Sebelumnya', Dir, True) then
+    UpdateDirEdit.Text := Dir;
 end;
 
 procedure InitializeWizard;
@@ -364,12 +417,59 @@ begin
   UpdateScriptPanel.BevelOuter := bvNone;
   UpdateScriptPanel.Visible := False;
   
-  WelcomeLabel := TLabel.Create(UpdateScriptPanel);
-  WelcomeLabel.Parent := UpdateScriptPanel;
-  WelcomeLabel.Caption := 'Update script functionality goes here.';
-  WelcomeLabel.Left := ScaleX(20);
-  WelcomeLabel.Top := ScaleY(20);
-  WelcomeLabel.Font.Color := clWhite;
+  // --- Folder Instalasi (Update) ---
+  DirLabel := TLabel.Create(UpdateScriptPanel);
+  DirLabel.Parent := UpdateScriptPanel;
+  DirLabel.Caption := 'Lokasi Folder Instalasi Saat Ini';
+  DirLabel.Left := ScaleX(20);
+  DirLabel.Top := ScaleY(20);
+  DirLabel.Font.Color := clWhite;
+
+  UpdateDirEdit := TNewEdit.Create(UpdateScriptPanel);
+  UpdateDirEdit.Parent := UpdateScriptPanel;
+  UpdateDirEdit.Left := ScaleX(20);
+  UpdateDirEdit.Top := ScaleY(40);
+  UpdateDirEdit.Width := ScaleX(320);
+  UpdateDirEdit.Height := ScaleY(30);
+  UpdateDirEdit.Color := clInputBg;
+  UpdateDirEdit.Text := ExpandConstant('{autopf}\{#AppName}');
+
+  BrowseBtn := TNewButton.Create(UpdateScriptPanel);
+  BrowseBtn.Parent := UpdateScriptPanel;
+  BrowseBtn.Left := UpdateDirEdit.Left + UpdateDirEdit.Width + ScaleX(10);
+  BrowseBtn.Top := UpdateDirEdit.Top;
+  BrowseBtn.Width := ScaleX(80);
+  BrowseBtn.Height := UpdateDirEdit.Height;
+  BrowseBtn.Caption := 'Browse';
+  BrowseBtn.OnClick := @UpdateBrowseBtnClick;
+
+  // --- URL ZIP Baru (Update) ---
+  UrlLabel := TLabel.Create(UpdateScriptPanel);
+  UrlLabel.Parent := UpdateScriptPanel;
+  UrlLabel.Caption := 'URL Unduhan Script (.zip) Versi Terbaru';
+  UrlLabel.Left := ScaleX(20);
+  UrlLabel.Top := ScaleY(85);
+  UrlLabel.Font.Color := clWhite;
+
+  UpdateUrlMemo := TNewMemo.Create(UpdateScriptPanel);
+  UpdateUrlMemo.Parent := UpdateScriptPanel;
+  UpdateUrlMemo.Left := ScaleX(20);
+  UpdateUrlMemo.Top := ScaleY(105);
+  UpdateUrlMemo.Width := UpdateScriptPanel.Width - ScaleX(40);
+  UpdateUrlMemo.Height := ScaleY(60);
+  UpdateUrlMemo.Color := clInputBg;
+  UpdateUrlMemo.Text := '{#ZipUrl}';
+
+  // --- Tombol Update ---
+  UpdateBtn := TNewButton.Create(UpdateScriptPanel);
+  UpdateBtn.Parent := UpdateScriptPanel;
+  UpdateBtn.Left := ScaleX(20);
+  UpdateBtn.Top := UpdateScriptPanel.Height - ScaleY(70);
+  UpdateBtn.Width := UpdateScriptPanel.Width - ScaleX(40);
+  UpdateBtn.Height := ScaleY(45);
+  UpdateBtn.Caption := 'Mulai Update Aplikasi';
+  UpdateBtn.Font.Style := [fsBold];
+  UpdateBtn.OnClick := @UpdateBtnClick;
 
   LogToConsole('Wizard diinisialisasi.');
   LogToConsole('Menunggu input user...');
