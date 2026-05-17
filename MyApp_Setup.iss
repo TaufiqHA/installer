@@ -18,40 +18,39 @@ DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 OutputDir=.\dist
 OutputBaseFilename=MyApp_Installer
-; SetupIconFile=assets\app.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=admin
-; Butuh PowerShell execution policy
 MinVersion=10.0
+ArchitecturesInstallIn64BitMode=x64
+ArchitecturesAllowed=x64
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
-; ── Custom Pages (input Port & Install Dir) ─────────────────
 [CustomMessages]
 InstallDirLabel=Lokasi Instalasi:
 AppPortLabel=Port Aplikasi (default 3000):
 MongoPortLabel=Port MongoDB (default 27017):
 
-; ── Files yang dibundle ke dalam installer ──────────────────
 [Files]
-; Bundel kedua PS1 ke dalam installer
-Source: "scripts\install.ps1";   DestDir: "{tmp}"; Flags: deleteafterinstall
-Source: "scripts\update.ps1";    DestDir: "{app}"; DestName: "update.ps1"
-; Icon / assets opsional
+Source: "scripts\install.ps1";  DestDir: "{tmp}"; Flags: deleteafterinstall
+Source: "scripts\update.ps1";   DestDir: "{app}"; DestName: "update.ps1"
 ; Source: "assets\*"; DestDir: "{app}\assets"; Flags: recursesubdirs
 
 [Icons]
-Name: "{group}\{#AppName}";          Filename: "{app}\update.ps1"
-Name: "{group}\Update {#AppName}";   Filename: "powershell.exe"; \
+Name: "{group}\{#AppName}";           Filename: "{app}\update.ps1"
+Name: "{group}\Update {#AppName}";    Filename: "powershell.exe"; \
       Parameters: "-ExecutionPolicy Bypass -File ""{app}\update.ps1"""; \
       WorkingDir: "{app}"
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 
 ; ── Script Pascal untuk custom wizard pages ─────────────────
 [Code]
+
+const
+  ZipUrl = '{#ZipUrl}';  { preprocessor expand di sini sebelum Pascal di-compile }
 
 var
   AppPortPage:   TInputQueryWizardPage;
@@ -108,14 +107,12 @@ begin
     MongoPort := MongoPortPage.Values[0];
     InstallDir := ExpandConstant('{app}');
 
-    Cmd := Format(
-      '-ExecutionPolicy Bypass -File "%s\install.ps1"' +
-      ' -InstallDir "%s"' +
-      ' -AppPort %s' +
-      ' -MongoPort %s' +
-      ' -ZipUrl "%s"',
-      [ExpandConstant('{tmp}'), InstallDir, AppPort, MongoPort, '{#ZipUrl}']
-    );
+    { Gunakan string concatenation — bukan Format() dengan array literal }
+    Cmd := '-ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}') + '\install.ps1"'
+         + ' -InstallDir "' + InstallDir + '"'
+         + ' -AppPort ' + AppPort
+         + ' -MongoPort ' + MongoPort
+         + ' -ZipUrl "' + ZipUrl + '"';
 
     if not Exec('powershell.exe', Cmd, '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then
       MsgBox('Instalasi gagal. Kode: ' + IntToStr(ResultCode), mbError, MB_OK)

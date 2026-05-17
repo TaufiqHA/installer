@@ -9,7 +9,7 @@ param(
     [string]$NodePort    = "3000",
     [string]$MongoPort   = "27017",
     [string]$ZipUrl      = "https://example.com/app.zip",
-    [string]$EnvExtra    = "",       # baris tambahan untuk .env (opsional)
+    [string]$EnvExtra    = "",
     [switch]$UpdateMode  = $false
 )
 
@@ -26,7 +26,7 @@ function Download-File($url, $dest) {
     Log "Downloading $url ..."
     try {
         Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
-        Ok "Downloaded → $dest"
+        Ok "Downloaded -> $dest"
     } catch {
         Err "Gagal download: $_"
     }
@@ -36,15 +36,15 @@ function Download-File($url, $dest) {
 function Install-NodeJS {
     if (Is-Installed "node") {
         $ver = node --version
-        Ok "Node.js sudah terinstall ($ver) — skip."
+        Ok "Node.js sudah terinstall ($ver) - skip."
         return
     }
     Log "Node.js belum ditemukan. Menginstall via winget..."
     try {
         winget install -e --id OpenJS.NodeJS.LTS --silent --accept-package-agreements --accept-source-agreements
         # Refresh PATH
-        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
-                    [System.Environment]::GetEnvironmentVariable("Path","User")
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+                    [System.Environment]::GetEnvironmentVariable("Path", "User")
         Ok "Node.js berhasil diinstall."
     } catch {
         Err "Instalasi Node.js gagal. Pastikan winget tersedia atau install manual dari https://nodejs.org"
@@ -55,7 +55,7 @@ function Install-NodeJS {
 function Install-MongoDB {
     $svc = Get-Service -Name "MongoDB" -ErrorAction SilentlyContinue
     if ($svc) {
-        Ok "MongoDB service sudah ada — skip."
+        Ok "MongoDB service sudah ada - skip."
         return
     }
     Log "MongoDB belum ditemukan. Menginstall via winget..."
@@ -130,12 +130,12 @@ function Setup-PM2 {
         & npm install -g pm2 2>&1 | Out-Null
         Ok "PM2 berhasil diinstall."
     } else {
-        Ok "PM2 sudah terinstall — skip."
+        Ok "PM2 sudah terinstall - skip."
     }
 
     # Deteksi entry point
     $entry = ""
-    foreach ($candidate in @("app.js","index.js","server.js","main.js")) {
+    foreach ($candidate in @("app.js", "index.js", "server.js", "main.js")) {
         if (Test-Path "$InstallDir\$candidate") { $entry = $candidate; break }
     }
     if ($entry -eq "") { Err "Entry point (app.js/index.js/server.js) tidak ditemukan di $InstallDir" }
