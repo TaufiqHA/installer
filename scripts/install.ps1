@@ -84,6 +84,17 @@ function Download-App {
     try {
         Expand-Archive -Path $zipPath -DestinationPath $InstallDir -Force
         Ok "Extract selesai."
+
+        # Periksa apakah hasil ekstrak terbungkus di dalam satu subfolder tunggal
+        $subdirs = Get-ChildItem -Path $InstallDir -Directory
+        $files = Get-ChildItem -Path $InstallDir -File
+        if ($subdirs.Count -eq 1 -and $files.Count -eq 0) {
+            $wrapper = $subdirs[0].FullName
+            Log "Mendeteksi folder pembungkus ($($subdirs[0].Name)), memindahkan isi ke root..."
+            Move-Item -Path "$wrapper\*" -Destination $InstallDir -Force
+            Remove-Item -Path $wrapper -Force
+        }
+
     } catch {
         Err "Gagal extract ZIP: $_"
     }
@@ -136,10 +147,10 @@ function Setup-PM2 {
 
     # Deteksi entry point
     $entry = ""
-    foreach ($candidate in @("app.js", "index.js", "server.js", "main.js")) {
+    foreach ($candidate in @("app.js", "index.js", "server.js", "main.js", "bin/www", "src/index.js")) {
         if (Test-Path "$InstallDir\$candidate") { $entry = $candidate; break }
     }
-    if ($entry -eq "") { Err "Entry point (app.js/index.js/server.js) tidak ditemukan di $InstallDir" }
+    if ($entry -eq "") { Err "Entry point (app.js/index.js/server.js/bin/www/src/index.js) tidak ditemukan di $InstallDir" }
 
     Log "Memulai aplikasi dengan PM2 (entry: $entry)..."
     Push-Location $InstallDir

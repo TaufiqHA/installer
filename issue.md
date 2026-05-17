@@ -1,53 +1,58 @@
-# Bug: Instalasi Gagal dengan Kode 1
+# Bug: Entry Point (app.js/index.js/server.js) Tidak Ditemukan
 
 ## Deskripsi Masalah
-Saat proses instalasi berjalan, installer menampilkan pesan:
-`Instalasi Gagal dengan kode: 1`
+Saat proses instalasi mencapai tahap *Setup PM2*, instalasi gagal dan muncul log error berikut:
+`[ERROR] Entry point (app.js/index.js/server.js) tidak ditemukan di C:\Program Files\MyApp`
 
 **Penyebab:**
-Kode exit `1` bukanlah pesan error spesifik dari Inno Setup, melainkan berasal dari script PowerShell (`scripts/install.ps1`). Di dalam script tersebut, fungsi `Err` dirancang untuk menghentikan eksekusi dengan perintah `exit 1` apabila terjadi kegagalan (misalnya gagal download ZIP, gagal install Node.js/MongoDB via winget, atau `npm install` gagal).
-Masalah utamanya adalah jendela *Command Prompt* (PowerShell) langsung tertutup begitu error terjadi, sehingga kita tidak bisa melihat pesan error aslinya.
+Masalah ini sangat umum terjadi akibat **struktur file ZIP** yang diunduh. Biasanya, saat kita mengompres (ZIP) sebuah aplikasi, kita mengompres foldernya, bukan langsung file-file di dalamnya. Akibatnya, saat `Expand-Archive` mengekstrak ZIP tersebut ke `$InstallDir`, file-file aplikasi masuk ke dalam sebuah subfolder (misalnya: `C:\Program Files\MyApp\nama-folder-app\app.js`), bukan langsung di *root* folder instalasi.
+Karena script mencari entry point dan menjalankan `npm install` langsung di root `$InstallDir`, file-file tersebut tidak ditemukan.
 
 ## Langkah-langkah Penyelesaian (Untuk Junior Dev / AI Model)
 
-Untuk mengetahui error yang sebenarnya (dan kemudian memperbaikinya), kita perlu menambahkan fitur pencatatan log (Transcript) pada script `install.ps1`.
+Untuk mengatasi masalah ini secara otomatis, kita perlu menambahkan logika untuk **memindahkan (flatten)** isi subfolder ke root direktori `$InstallDir` jika hasil ekstrak ternyata terbungkus oleh satu folder utama tunggal.
 
 ### Modifikasi `scripts/install.ps1`
 **Lokasi File:** `/home/padi-kering/Documents/KERJA/installer/scripts/install.ps1`
 
 1. Buka file `install.ps1`.
-2. Pada bagian paling atas, tepat setelah blok `param(...)`, tambahkan perintah `Start-Transcript` untuk mencatat semua proses ke dalam file teks.
-3. Pada bagian paling bawah script, tambahkan `Stop-Transcript`.
+2. Cari fungsi `Download-App`.
+3. Tepat setelah perintah `Expand-Archive ...` yang sukses (di bawah `Ok "Extract selesai."`), tambahkan blok kode pendeteksi folder pembungkus dan pindahkan isinya keluar.
 
 **Diff Perubahan:**
 ```powershell
-@@ -13,6 +13,9 @@ param(
-     [switch]$UpdateMode  = $false
- )
- 
-+# Tambahkan ini untuk mencatat log ke folder TEMP Windows
-+Start-Transcript -Path "$env:TEMP\MyApp_Install_Log.txt" -Append
+@@ -xxx,xxx @@ function Download-App {
+     Log "Mengextract ke $InstallDir ..."
+     try {
+         Expand-Archive -Path $zipPath -DestinationPath $InstallDir -Force
+         Ok "Extract selesai."
 +
- # ── Helpers ─────────────────────────────────────────────────
- function Log($msg) { Write-Host "[INFO]  $msg" }
- function Err($msg) { Write-Host "[ERROR] $msg" -ForegroundColor Red; exit 1 }
-@@ -183,4 +186,7 @@ if ($UpdateMode) {
-     Install-App
- }
- 
-+# Hentikan pencatatan log
-+Stop-Transcript
++        # Periksa apakah hasil ekstrak terbungkus di dalam satu subfolder tunggal
++        $subdirs = Get-ChildItem -Path $InstallDir -Directory
++        $files = Get-ChildItem -Path $InstallDir -File
++        if ($subdirs.Count -eq 1 -and $files.Count -eq 0) {
++            $wrapper = $subdirs[0].FullName
++            Log "Mendeteksi folder pembungkus ($($subdirs[0].Name)), memindahkan isi ke root..."
++            Move-Item -Path "$wrapper\*" -Destination $InstallDir -Force
++            Remove-Item -Path $wrapper -Force
++        }
 +
- Log "Semua proses selesai."
+     } catch {
+         Err "Gagal extract ZIP: $_"
+     }
 ```
 
-## Verifikasi & Debugging Lanjutan
-1. Simpan file `install.ps1`.
-2. Jika perlu, Anda juga dapat mengubah file `MyApp_Setup.iss` dengan menambahkan `-NoExit` pada baris argumen powershell (hanya untuk sementara saat testing) agar jendela hitam tidak langsung tertutup:
-   ```pascal
-   Params := '-NoExit -ExecutionPolicy Bypass -File "' + ...
-   ```
-3. Lakukan kompilasi ulang Inno Setup (tekan F9) dan jalankan installer kembali.
-4. Ketika instalasi gagal dengan kode 1, buka file log di lokasi berikut (copas ke File Explorer):
-   `%TEMP%\MyApp_Install_Log.txt`
-5. Baca baris terakhir yang mengandung teks `[ERROR]`. Dari situ, Anda akan mengetahui penyebab pasti kegagalannya (misal: "Gagal download update", "winget tidak ditemukan", dsb) dan dapat memperbaiki sumber masalah yang spesifik.
+## Alternatif Lain / Tambahan (Opsional)
+Jika aplikasi memang memiliki nama entry point yang berbeda (misalnya `bin/www` atau `src/main.js`), Anda juga dapat memperbarui daftar pencarian di fungsi `Setup-PM2` di dalam file `install.ps1` seperti ini:
+
+```powershell
+# Di dalam fungsi Setup-PM2
+foreach ($candidate in @("app.js", "index.js", "server.js", "main.js", "bin/www", "src/index.js")) {
+    ...
+}
+```
+
+## Verifikasi
+1. Terapkan perubahan pada `install.ps1` di atas lalu simpan.
+2. Compile ulang `MyApp_Setup.iss`.
+3. Jalankan installer kembali. Anda seharusnya melihat log *"Mendeteksi folder pembungkus..."* jika ZIP yang diunduh memang terbungkus folder, dan instalasi PM2 akan sukses karena file `app.js`/`index.js` sudah berpindah ke letak yang benar (di root folder).
