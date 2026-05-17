@@ -7,7 +7,7 @@
 #define AppVersion   "1.0.0"
 #define AppPublisher "Your Company"
 #define AppURL       "https://yourapp.com"
-#define ZipUrl       "https://nodejs.org/dist/v24.15.0/node-v24.15.0-win-x64.zip"
+#define ZipUrl       "https://github.com/hagopj13/node-express-boilerplate/archive/refs/heads/master.zip"
 
 [Setup]
 AppId={{9d43a21a-b547-40f9-ac2b-04d3849c1c75}}
