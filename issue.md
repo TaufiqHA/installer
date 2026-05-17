@@ -1,11 +1,11 @@
-# Issue: Duplicate Identifier 'CENTER' in MyApp_Setup.iss
+# Issue: Unknown Identifier 'CENTER' in MyApp_Setup.iss
 
 ## Deskripsi Bug
 Saat melakukan kompilasi file `MyApp_Setup.iss`, muncul error:
-`Duplicate identifier 'CENTER'` di dalam bagian `[Code]`.
+`Unknown identifier 'CENTER'` di dalam bagian `[Code]`.
 
 **Penyebab:**
-Di dalam Inno Setup (Pascal Script), nama `Center` (tidak peka huruf besar/kecil, sehingga `CENTER` sama dengan `Center`) adalah nama metode bawaan untuk komponen form (misalnya `WizardForm.Center`). Jika Anda mendefinisikan konstanta atau variabel dengan nama `CENTER`, hal ini akan menyebabkan konflik dengan identitas bawaan tersebut atau jika ada duplikasi definisi di tempat lain.
+Error ini terjadi ketika compiler Inno Setup (Pascal Script) menemukan kata `CENTER` tetapi tidak tahu apa artinya. Penyebab paling umum adalah kesalahan penulisan (typo) saat mencoba mengatur perataan teks (alignment). Di Inno Setup, konstanta untuk rata tengah bukanlah `CENTER`, melainkan `taCenter`.
 
 ---
 
@@ -16,44 +16,43 @@ Buka file berikut:
 `/home/padi-kering/Documents/KERJA/installer/MyApp_Setup.iss`
 
 ### 2. Identifikasi Masalah
-Cari apakah ada baris yang mendefinisikan `CENTER` atau `Center` sebagai konstanta atau variabel.
-Contoh baris yang mungkin menyebabkan masalah:
+Cari baris kode di mana terjadi error. Biasanya error ini muncul saat mengatur properti `Alignment` pada komponen label teks.
+Contoh kode yang **salah**:
 ```pascal
-[Code]
-const
-  CENTER = 1; // <-- KONFLIK DI SINI
+MyLabel.Alignment := CENTER; // <-- ERROR DI SINI
 ```
-Atau jika ada dua definisi fungsi/prosedur dengan nama yang sama.
 
 ### 3. Cara Memperbaiki
-Hindari penggunaan nama yang sangat umum atau yang sudah digunakan oleh sistem (reserved keywords/built-in methods).
+Ganti kata `CENTER` menjadi `taCenter`. `taCenter` adalah konstanta bawaan Inno Setup untuk "Text Alignment Center".
 
 #### Langkah-langkah detail:
-1.  **Ganti Nama Konstanta/Variabel:**
-    Jika Anda menemukan baris seperti `CENTER = ...;`, ganti namanya menjadi sesuatu yang lebih spesifik, misalnya `clAppCenter` atau `TEXT_ALIGN_CENTER`.
-    
-    *Contoh Perubahan:*
+1.  **Temukan kata `CENTER`:**
+    Gunakan fitur **Find (Ctrl + F)** pada text editor dan cari kata `CENTER`.
+2.  **Ganti dengan `taCenter`:**
+    Ubah baris tersebut agar menggunakan konstanta yang benar.
+
+    *Contoh Perbaikan:*
     ```pascal
-    // Sebelum
-    const
-      CENTER = 2;
+    // Sebelum (SALAH)
+    TabFreshLabel.Alignment := CENTER;
     
-    // Sesudah
-    const
-      ALIGN_CENTER_VAL = 2;
+    // Sesudah (BENAR)
+    TabFreshLabel.Alignment := taCenter;
     ```
-2.  **Periksa Penggunaan `taCenter`:**
-    Pastikan Anda tidak salah menulis `taCenter` (untuk perataan teks) menjadi hanya `CENTER`. `taCenter` adalah nilai yang benar untuk properti `Alignment`.
-3.  **Hapus Jika Tidak Diperlukan:**
-    Jika baris tersebut tidak sengaja ditambahkan atau merupakan sisa kode lama, hapus saja baris tersebut.
+    *Pastikan huruf "t" kecil dan "a" kecil, diikuti "Center" dengan "C" besar (meskipun Pascal tidak case-sensitive, ini adalah konvensi penulisan yang baik).*
 
 ### 4. Verifikasi
 1.  Simpan file `MyApp_Setup.iss`.
 2.  Buka Inno Setup Compiler.
 3.  Tekan **Compile (F9)**.
-4.  Pastikan error "Duplicate identifier 'CENTER'" sudah tidak muncul lagi.
+4.  Pastikan error "Unknown identifier 'CENTER'" sudah tidak muncul lagi.
 
 ---
 
 ## Catatan untuk Junior Dev / AI Model
-Selalu gunakan awalan (prefix) yang unik untuk konstanta kustom Anda (misalnya `MYAPP_...` atau `clApp...`) untuk menghindari konflik dengan library bawaan Inno Setup. Jika Anda melihat `WizardForm.Center;` di dalam kode, itu adalah perintah untuk memposisikan jendela ke tengah layar, jangan gunakan nama yang sama untuk hal lain.
+Inno Setup menggunakan konvensi penamaan Delphi/Pascal. Untuk perataan teks (alignment), nilai yang valid adalah:
+- `taLeftJustify` (Rata Kiri)
+- `taCenter` (Rata Tengah)
+- `taRightJustify` (Rata Kanan)
+
+Jadi, setiap kali Anda melihat error "Unknown identifier 'CENTER'" pada properti Alignment, langsung ganti dengan `taCenter`.
