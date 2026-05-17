@@ -15,7 +15,7 @@ buat agar mudah diimplementasikan oleh junior dev atau model AI yang lebih murah
 
 buat issue.md untuk : 
 
-fix bug, line 51 di file /home/padi-kering/Documents/KERJA/installer/MyApp_Setup.iss column 3, duplicate identifier 'clTeal'
+fix bug, line 51 di file /home/padi-kering/Documents/KERJA/installer/MyApp_Setup.iss column 3, duplicate identifier 'clWhite'
 
 buat langkah langkah yang jelas untuk fix bug ini
 

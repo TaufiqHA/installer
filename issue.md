@@ -1,11 +1,11 @@
-# Issue: Duplicate Identifier 'clTeal' in MyApp_Setup.iss
+# Issue: Duplicate Identifier 'clWhite' in MyApp_Setup.iss
 
 ## Deskripsi Bug
 Saat melakukan kompilasi file `MyApp_Setup.iss`, muncul error:
-`Duplicate identifier 'clTeal'` pada **Line 51, Column 3**.
+`Duplicate identifier 'clWhite'` pada bagian konstanta di dalam blok `[Code]`.
 
 **Penyebab:**
-Inno Setup (Pascal Script) sudah memiliki konstanta bawaan bernama `clTeal`. Mendefinisikan ulang konstanta dengan nama yang sama di bagian `[Code]` menyebabkan konflik.
+Inno Setup (Pascal Script) sudah memiliki konstanta standar bernama `clWhite`. Mendefinisikan ulang konstanta dengan nama yang sama persis menyebabkan konflik identitas (duplicate identifier).
 
 ---
 
@@ -13,46 +13,40 @@ Inno Setup (Pascal Script) sudah memiliki konstanta bawaan bernama `clTeal`. Men
 
 ### 1. Lokasi File
 Buka file berikut:
-`C:\path\to\project\installer\MyApp_Setup.iss`
+`/home/padi-kering/Documents/KERJA/installer/MyApp_Setup.iss`
 
-### 2. Temukan Baris Bermasalah
-Cari baris ke-51 atau cari teks `clTeal` di dalam blok `[Code]`.
+### 2. Identifikasi Masalah
+Cari baris yang mendefinisikan `clWhite` di dalam blok `[Code]`.
 Tampilan kodenya saat ini:
 ```pascal
 [Code]
 const
-  // Colors (BGR format)
-  clBgWindow     = $382F2C; // #2c2f38
-  clBgConsole    = $30211E; // #1e2130
-  clTeal         = $C4CD4E; // #4ecdc4  <-- ERROR DI SINI
-  clInputBg      = $F0E6C8; // #c8e6f0
+  ...
+  clWhite        = $FFFFFF; // <-- ERROR DI SINI
+  clBlack        = $000000;
+  ...
 ```
 
 ### 3. Cara Memperbaiki
-Ubah nama konstanta `clTeal` menjadi nama yang unik, misalnya `clCustomTeal`, atau hapus baris tersebut jika ingin menggunakan warna Teal bawaan Windows.
-
-**Opsi Rekomendasi (Ubah Nama):**
-Ganti `clTeal` menjadi `clAppTeal` pada baris 51, kemudian ganti semua penggunaan `clTeal` di seluruh file menjadi `clAppTeal`.
+Karena `clWhite` adalah warna standar yang sudah dikenal oleh Inno Setup, cara termudah dan teraman adalah **menghapus** baris deklarasi tersebut agar compiler menggunakan nilai bawaan sistem.
 
 #### Langkah-langkah detail:
-1.  **Ganti deklarasi:**
-    Ubah baris 51 menjadi:
-    ```pascal
-    clAppTeal      = $C4CD4E; // #4ecdc4
-    ```
-2.  **Ganti penggunaan (Find & Replace):**
-    Gunakan fitur **Replace (Ctrl + H)** pada text editor (VS Code / Inno Setup IDE):
-    *   Find: `clTeal`
-    *   Replace with: `clAppTeal`
-    *   *Pastikan hanya mengganti di bagian [Code] agar tidak merubah hal yang tidak diinginkan.*
+1.  **Hapus Baris Deklarasi:**
+    Cari baris `clWhite = $FFFFFF;` dan hapus baris tersebut sepenuhnya.
+2.  **Hapus Baris clBlack (Opsional tapi Disarankan):**
+    Biasanya `clBlack` juga akan menyebabkan error yang sama jika didefinisikan ulang. Disarankan untuk menghapusnya juga.
+3.  **Gunakan Nama Unik (Alternatif):**
+    Jika Anda ingin tetap mendefinisikan warna putih kustom Anda sendiri, ganti namanya menjadi `clAppWhite`:
+    *   Ganti `clWhite = $FFFFFF;` menjadi `clAppWhite = $FFFFFF;`.
+    *   Lakukan *Find & Replace* semua penggunaan `clWhite` di seluruh file menjadi `clAppWhite`.
 
 ### 4. Verifikasi
 1.  Simpan file `MyApp_Setup.iss`.
-2.  Buka Inno Setup Compiler.
-3.  Tekan **F9** untuk Compile.
-4.  Pastikan tidak ada lagi error "Duplicate identifier".
+2.  Jalankan Inno Setup Compiler.
+3.  Tekan **Compile (F9)**.
+4.  Pastikan error "Duplicate identifier 'clWhite'" sudah hilang.
 
 ---
 
-## Catatan Tambahan
-Jika Anda adalah model AI, Anda bisa menjalankan perintah `sed` atau script replace sederhana untuk mengganti string `clTeal` menjadi `clAppTeal` di dalam file tersebut.
+## Catatan untuk Junior Dev / AI Model
+Jika Anda menggunakan editor seperti VS Code, cukup cari teks `clWhite` di bagian `const` dan hapus barisnya. Inno Setup akan otomatis mengerti bahwa `clWhite` merujuk pada warna putih standar.

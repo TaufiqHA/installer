@@ -51,8 +51,6 @@ const
   clAppTeal         = $C4CD4E; // #4ecdc4
   clInputBg      = $F0E6C8; // #c8e6f0
   clBlueBtn      = $D57B3A; // #3a7bd5
-  clWhite        = $FFFFFF;
-  clBlack        = $000000;
   clDarkGray     = $333333;
 
 var
