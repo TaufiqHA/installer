@@ -48,7 +48,7 @@ const
   // Colors (BGR format)
   clBgWindow     = $382F2C; // #2c2f38
   clBgConsole    = $30211E; // #1e2130
-  clTeal         = $C4CD4E; // #4ecdc4
+  clAppTeal         = $C4CD4E; // #4ecdc4
   clInputBg      = $F0E6C8; // #c8e6f0
   clBlueBtn      = $D57B3A; // #3a7bd5
   clWhite        = $FFFFFF;
@@ -79,7 +79,7 @@ begin
   begin
     FreshInstallPanel.Visible := True;
     UpdateScriptPanel.Visible := False;
-    TabFreshBtn.Color := clTeal;
+    TabFreshBtn.Color := clAppTeal;
     TabUpdateBtn.Color := clBgWindow;
     TLabel(TabFreshBtn.Controls[0]).Font.Color := clBlack;
     TLabel(TabUpdateBtn.Controls[0]).Font.Color := clWhite;
@@ -89,7 +89,7 @@ begin
     FreshInstallPanel.Visible := False;
     UpdateScriptPanel.Visible := True;
     TabFreshBtn.Color := clBgWindow;
-    TabUpdateBtn.Color := clTeal;
+    TabUpdateBtn.Color := clAppTeal;
     TLabel(TabFreshBtn.Controls[0]).Font.Color := clWhite;
     TLabel(TabUpdateBtn.Controls[0]).Font.Color := clBlack;
   end;
@@ -204,7 +204,7 @@ begin
   ConsoleMemo.Width := LeftPanel.Width - ScaleX(40);
   ConsoleMemo.Height := LeftPanel.Height - ScaleY(100);
   ConsoleMemo.Color := clBgConsole;
-  ConsoleMemo.Font.Color := clTeal;
+  ConsoleMemo.Font.Color := clAppTeal;
   ConsoleMemo.Font.Name := 'Consolas';
   ConsoleMemo.Font.Size := 9;
   ConsoleMemo.ReadOnly := True;
@@ -227,7 +227,7 @@ begin
   TabFreshBtn.Top := ScaleY(0);
   TabFreshBtn.Width := RightPanel.Width div 2;
   TabFreshBtn.Height := ScaleY(40);
-  TabFreshBtn.Color := clTeal;
+  TabFreshBtn.Color := clAppTeal;
   TabFreshBtn.BevelOuter := bvNone;
   TabFreshBtn.OnClick := @TabFreshBtnClick;
   TabFreshBtn.Cursor := crHand;
