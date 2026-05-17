@@ -1,51 +1,62 @@
-# Bug: npm error code ENOENT (package.json Tidak Ditemukan)
+# Bug: npm error code ENOENT (Error Terjadi Lagi di folder `testing`)
 
 ## Deskripsi Masalah
-Saat proses instalasi mencapai tahap *npm install*, muncul error di log (atau di console PowerShell) seperti berikut:
-```text
-npm error code ENOENT
-npm error syscall open
-npm error path C:\Program Files\MyApp\package.json
-npm error errno -4058
-npm error enoent Could not read package.json: Error: ENOENT: no such file or directory
-```
+Anda mengalami error `npm error code ENOENT` (file `package.json` tidak ditemukan) dengan path target `C:\Program Files\testing\package.json`. Padahal, pada perbaikan sebelumnya, kita sudah menambahkan pengecekan (validasi) `package.json` agar `npm install` tidak dijalankan jika filenya tidak ada.
+
 **Penyebab:**
-Script mencoba menjalankan perintah `npm install` di dalam folder `$InstallDir` (misalnya `C:\Program Files\MyApp`), namun file `package.json` tidak ada di folder tersebut. 
-Hal ini terjadi karena file ZIP yang diunduh (tergantung dari input URL `ZipUrl`) tidak berisi aplikasi Node.js yang sah (tidak memiliki `package.json`). Contohnya, jika menggunakan URL bawaan `node-v24.15.0-win-x64.zip`, itu adalah biner Node.js dan bukan aplikasi Anda. Akibatnya, `npm install` gagal karena tidak tahu apa yang harus di-install.
+Jika error ini masih muncul, kemungkinan besar Anda sedang menjalankan atau menguji script **`update.ps1`** (misalnya lewat shortcut Update di Start Menu, atau menjalankan langsung file `update.ps1` di folder instalasi).
+Pada perbaikan-perbaikan sebelumnya, kita **hanya** menambal script utama yaitu `scripts/install.ps1`. File script `scripts/update.ps1` yang berdiri sendiri (standalone updater) belum mendapatkan perbaikan logika untuk mengatasi struktur folder ZIP (wrapper folder) maupun pengecekan `package.json`. Akibatnya, saat `update.ps1` dijalankan, ia akan mengekstrak file lalu langsung memaksa `npm install` tanpa mempedulikan apakah `package.json` benar-benar ada, sehingga menyebabkan *crash* `ENOENT`.
 
 ## Langkah-langkah Penyelesaian (Untuk Junior Dev / AI Model)
 
-Untuk mencegah instalasi gagal (crash) secara keseluruhan hanya karena tidak ada `package.json`, kita perlu menambahkan pengecekan (validasi) file `package.json` sebelum menjalankan `npm install`.
+Kita perlu menyamakan logika (sinkronisasi) perbaikan dari `install.ps1` ke dalam `update.ps1`. Yaitu dengan menambahkan deteksi *wrapper folder* dan memvalidasi `package.json` sebelum `npm install`.
 
-### Modifikasi `scripts/install.ps1`
-**Lokasi File:** `/home/padi-kering/Documents/KERJA/installer/scripts/install.ps1`
+### Modifikasi `scripts/update.ps1`
+**Lokasi File:** `/home/padi-kering/Documents/KERJA/installer/scripts/update.ps1`
 
-1. Buka file `scripts/install.ps1`.
-2. Cari definisi fungsi `Run-NpmInstall`.
-3. Tambahkan logika `Test-Path` di bagian paling awal fungsi tersebut untuk mengecek keberadaan `package.json`. Jika tidak ada, catat pesan log dan keluar dari fungsi tanpa menjalankan `npm install`.
+1. Buka file `scripts/update.ps1`.
+2. Di bagian `# ── 2. Extract (overwrite)`, tambahkan logika pendeteksi *wrapper folder* (sama seperti di `install.ps1`).
+3. Di bagian `# ── 3. npm install`, tambahkan validasi `Test-Path` sebelum menjalankan `npm install`.
 
 **Diff Perubahan:**
 ```powershell
-@@ -xxx,xxx @@ function Create-Env {
- 
- # ── 5. npm install ──────────────────────────────────────────
- function Run-NpmInstall {
-+    if (-not (Test-Path "$InstallDir\package.json")) {
-+        Log "File package.json tidak ditemukan di $InstallDir. Melewati proses npm install."
-+        return
-+    }
+@@ -xxx,xxx @@ Log "Mengextract ke $InstallDir ..."
+ try {
+     Expand-Archive -Path $zipPath -DestinationPath $InstallDir -Force
+     Ok "Extract selesai."
 +
-     Log "Menjalankan npm install di $InstallDir ..."
++    # Periksa apakah hasil ekstrak terbungkus di dalam satu subfolder tunggal
++    $subdirs = Get-ChildItem -Path $InstallDir -Directory
++    $files = Get-ChildItem -Path $InstallDir -File
++    if ($subdirs.Count -eq 1 -and $files.Count -eq 0) {
++        $wrapper = $subdirs[0].FullName
++        Log "Mendeteksi folder pembungkus ($($subdirs[0].Name)), memindahkan isi ke root..."
++        Move-Item -Path "$wrapper\*" -Destination $InstallDir -Force
++        Remove-Item -Path $wrapper -Force
++    }
+ } catch {
+     Err "Gagal extract: $_"
+ }
+ Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+ 
+ # ── 3. npm install ───────────────────────────────────────────
++if (-not (Test-Path "$InstallDir\package.json")) {
++    Log "File package.json tidak ditemukan di $InstallDir. Melewati proses npm install."
++} else {
+     Log "Menjalankan npm install ..."
      Push-Location $InstallDir
      try {
-         & npm install --omit=dev 2>&1 | Tee-Object -FilePath "$InstallDir\npm-install.log"
+         & npm install --omit=dev 2>&1 | Tee-Object -FilePath "$InstallDir\npm-update.log"
          Ok "npm install selesai."
+     } catch {
+         Err "npm install gagal: $_"
+     } finally {
+         Pop-Location
+     }
++}
 ```
 
-### Catatan Tambahan (Sangat Penting):
-Error ini juga menjadi pertanda kuat bahwa Anda **memasukkan URL ZIP yang salah** saat melakukan instalasi. Pastikan kolom **URL Unduhan Script (.zip)** diisi dengan *link* `.zip` *source code* aplikasi Anda yang sesungguhnya (yang memiliki `package.json` dan `app.js` di dalamnya).
-
 ## Verifikasi
-1. Terapkan perubahan pada `install.ps1` di atas.
-2. Compile ulang installer Inno Setup (F9).
-3. Jalankan installer. Jika file ZIP yang diunduh memang tidak memiliki `package.json`, Anda hanya akan melihat log "*File package.json tidak ditemukan... Melewati proses npm install*" dan proses instalasi tidak akan mengalami error *crash* atau *exit code 1* pada tahap tersebut.
+1. Terapkan perubahan di atas pada `scripts/update.ps1`.
+2. Jika Anda masih menggunakan URL Node.js bawaan (`node-v24...zip`) untuk pengetesan, pastikan untuk menggantinya dengan URL *source code* aplikasi Anda sendiri yang memiliki `package.json` yang sah.
+3. Coba jalankan ulang shortcut Update aplikasi atau script `update.ps1`. Jika file ZIP tidak memiliki `package.json`, ia akan memunculkan log info "*Melewati proses npm install*" secara aman dan tidak lagi mengalami *crash ENOENT*.

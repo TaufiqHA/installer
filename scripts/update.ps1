@@ -28,21 +28,35 @@ Log "Mengextract ke $InstallDir ..."
 try {
     Expand-Archive -Path $zipPath -DestinationPath $InstallDir -Force
     Ok "Extract selesai."
+
+    # Periksa apakah hasil ekstrak terbungkus di dalam satu subfolder tunggal
+    $subdirs = Get-ChildItem -Path $InstallDir -Directory
+    $files = Get-ChildItem -Path $InstallDir -File
+    if ($subdirs.Count -eq 1 -and $files.Count -eq 0) {
+        $wrapper = $subdirs[0].FullName
+        Log "Mendeteksi folder pembungkus ($($subdirs[0].Name)), memindahkan isi ke root..."
+        Move-Item -Path "$wrapper\*" -Destination $InstallDir -Force
+        Remove-Item -Path $wrapper -Force
+    }
 } catch {
     Err "Gagal extract: $_"
 }
 Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
 
 # ── 3. npm install ───────────────────────────────────────────
-Log "Menjalankan npm install ..."
-Push-Location $InstallDir
-try {
-    & npm install --omit=dev 2>&1 | Tee-Object -FilePath "$InstallDir\npm-update.log"
-    Ok "npm install selesai."
-} catch {
-    Err "npm install gagal: $_"
-} finally {
-    Pop-Location
+if (-not (Test-Path "$InstallDir\package.json")) {
+    Log "File package.json tidak ditemukan di $InstallDir. Melewati proses npm install."
+} else {
+    Log "Menjalankan npm install ..."
+    Push-Location $InstallDir
+    try {
+        & npm install --omit=dev 2>&1 | Tee-Object -FilePath "$InstallDir\npm-update.log"
+        Ok "npm install selesai."
+    } catch {
+        Err "npm install gagal: $_"
+    } finally {
+        Pop-Location
+    }
 }
 
 # ── 4. PM2 restart ───────────────────────────────────────────

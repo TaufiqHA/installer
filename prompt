@@ -23,14 +23,14 @@ At line:1 char:1
     + FullyQualifiedErrorId : NativeCommandError
  
 npm error syscall open
-npm error path C:\Program Files\MyApp\package.json
+npm error path C:\Program Files\testing\package.json
 npm error errno -4058
 npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open 'C:\Program 
-Files\MyApp\package.json'
+Files\testing\package.json'
 npm error enoent This is related to npm not being able to find a file.
 npm error enoent
 npm error A complete log of this run can be found in: C:\Users\padi 
-kering\AppData\Local\npm-cache\_logs\2026-05-17T12_05_38_664Z-debug-0.log
+kering\AppData\Local\npm-cache\_logs\2026-05-17T12_12_23_328Z-debug-0.log
 
 buat langkah langkah yang jelas untuk fix bug ini
 
