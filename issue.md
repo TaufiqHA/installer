@@ -1,50 +1,51 @@
-# Bug: Instalasi Gagal dengan Kode -1073741510 dan Entry Point Tidak Ditemukan
+# Bug: npm error code ENOENT (package.json Tidak Ditemukan)
 
 ## Deskripsi Masalah
-Saat melakukan instalasi, Anda mengalami dua masalah sekaligus:
-1. Muncul error: `Instalasi Gagal dengan kode: -1073741510`
-2. Di dalam log (atau di layar), terdapat pesan bahwa *Entry point tidak ditemukan di folder installnya*.
-
-**Penyebab Pertama (Kode -1073741510):**
-Kode `-1073741510` (secara *hexadecimal* adalah `0xC000013A` atau `STATUS_CONTROL_C_EXIT`) muncul jika jendela Command Prompt (PowerShell) **ditutup secara paksa** (klik tanda X) sebelum Inno Setup selesai membacanya. Ini terjadi karena pada perbaikan sebelumnya, kita secara tidak sengaja meninggalkan *flag* `-NoExit` di parameter eksekusi. Akibatnya, jendela PowerShell tidak mau menutup sendiri secara otomatis setelah selesai/error, dan saat Anda menutupnya secara manual, Inno Setup mendeteksi adanya penutupan paksa.
-
-**Penyebab Kedua (Entry Point Tidak Ditemukan):**
-Script gagal menemukan file seperti `app.js` atau `index.js` karena file ZIP yang saat ini sedang diunduh (tercantum di *placeholder* input URL) adalah `https://nodejs.org/dist/v24.15.0/node-v24.15.0-win-x64.zip`. Itu adalah file biner/aplikasi dari bahasa pemrograman **Node.js itu sendiri**, **BUKAN** kode sumber/aplikasi buatan Anda. Jadi, setelah terekstrak, tidak ada file `app.js` di dalamnya (isinya adalah `node.exe`, `npm.cmd`, dll).
-
----
+Saat proses instalasi mencapai tahap *npm install*, muncul error di log (atau di console PowerShell) seperti berikut:
+```text
+npm error code ENOENT
+npm error syscall open
+npm error path C:\Program Files\MyApp\package.json
+npm error errno -4058
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory
+```
+**Penyebab:**
+Script mencoba menjalankan perintah `npm install` di dalam folder `$InstallDir` (misalnya `C:\Program Files\MyApp`), namun file `package.json` tidak ada di folder tersebut. 
+Hal ini terjadi karena file ZIP yang diunduh (tergantung dari input URL `ZipUrl`) tidak berisi aplikasi Node.js yang sah (tidak memiliki `package.json`). Contohnya, jika menggunakan URL bawaan `node-v24.15.0-win-x64.zip`, itu adalah biner Node.js dan bukan aplikasi Anda. Akibatnya, `npm install` gagal karena tidak tahu apa yang harus di-install.
 
 ## Langkah-langkah Penyelesaian (Untuk Junior Dev / AI Model)
 
-### 1. Modifikasi `MyApp_Setup.iss` (Menghapus `-NoExit`)
-**Lokasi File:** `/home/padi-kering/Documents/KERJA/installer/MyApp_Setup.iss`
+Untuk mencegah instalasi gagal (crash) secara keseluruhan hanya karena tidak ada `package.json`, kita perlu menambahkan pengecekan (validasi) file `package.json` sebelum menjalankan `npm install`.
 
-1. Buka file `MyApp_Setup.iss`.
-2. Cari bagian _procedure_ `RunInstallScript`.
-3. Hapus tulisan `-NoExit ` pada baris pembuatan `Params`.
+### Modifikasi `scripts/install.ps1`
+**Lokasi File:** `/home/padi-kering/Documents/KERJA/installer/scripts/install.ps1`
+
+1. Buka file `scripts/install.ps1`.
+2. Cari definisi fungsi `Run-NpmInstall`.
+3. Tambahkan logika `Test-Path` di bagian paling awal fungsi tersebut untuk mengecek keberadaan `package.json`. Jika tidak ada, catat pesan log dan keluar dari fungsi tanpa menjalankan `npm install`.
 
 **Diff Perubahan:**
-```pascal
-@@ -xxx,xxx @@ begin
-   // EKSTRAK FILE SCRIPT SEBELUM MENJALANKAN (Karena kita bypass default UI Inno Setup)
-   ExtractTemporaryFile('install.ps1');
-   
--  Params := '-NoExit -ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}') + '\install.ps1"' +
-+  Params := '-ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}') + '\install.ps1"' +
-             ' -InstallDir "' + InstallDirEdit.Text + '"' +
-             ' -ZipUrl "' + SafeUrl + '"' +
+```powershell
+@@ -xxx,xxx @@ function Create-Env {
+ 
+ # ── 5. npm install ──────────────────────────────────────────
+ function Run-NpmInstall {
++    if (-not (Test-Path "$InstallDir\package.json")) {
++        Log "File package.json tidak ditemukan di $InstallDir. Melewati proses npm install."
++        return
++    }
++
+     Log "Menjalankan npm install di $InstallDir ..."
+     Push-Location $InstallDir
+     try {
+         & npm install --omit=dev 2>&1 | Tee-Object -FilePath "$InstallDir\npm-install.log"
+         Ok "npm install selesai."
 ```
 
-### 2. Gunakan URL Aplikasi yang Benar (Bukan URL Node.js)
-Saat menjalankan Installer (setelah di-compile), pastikan Anda mengganti isian **URL Unduhan Script (.zip)** dengan URL yang berisi *source code* aplikasi Express/Node.js milik Anda sendiri yang memiliki file `app.js` atau `index.js` di dalamnya.
-
-Jika Anda hanya ingin mencoba agar instalasi lolos (berhasil):
-Anda dapat mengosongkan pengecekan di `install.ps1` secara sementara, atau membuat file dummy ZIP yang berisi satu buah file `app.js`.
-
-Namun, solusi terbaiknya adalah menggunakan file `.zip` dari repository aplikasi target Anda yang asli.
+### Catatan Tambahan (Sangat Penting):
+Error ini juga menjadi pertanda kuat bahwa Anda **memasukkan URL ZIP yang salah** saat melakukan instalasi. Pastikan kolom **URL Unduhan Script (.zip)** diisi dengan *link* `.zip` *source code* aplikasi Anda yang sesungguhnya (yang memiliki `package.json` dan `app.js` di dalamnya).
 
 ## Verifikasi
-1. Terapkan perubahan pada `MyApp_Setup.iss` untuk menghapus `-NoExit`.
-2. Lakukan *Compile* ulang (F9).
-3. Jalankan installer. Saat instalasi gagal (misalnya karena entry point tidak ada), jendela hitam akan menutup sendiri secara otomatis.
-4. Karena jendela tertutup secara normal oleh script (menggunakan `exit 1`), pesan yang akan muncul di aplikasi installer adalah `Instalasi Gagal dengan kode: 1` (bukan -1073741510).
-5. Masukkan URL `.zip` aplikasi yang valid, maka instalasi akan berjalan sukses 100%.
+1. Terapkan perubahan pada `install.ps1` di atas.
+2. Compile ulang installer Inno Setup (F9).
+3. Jalankan installer. Jika file ZIP yang diunduh memang tidak memiliki `package.json`, Anda hanya akan melihat log "*File package.json tidak ditemukan... Melewati proses npm install*" dan proses instalasi tidak akan mengalami error *crash* atau *exit code 1* pada tahap tersebut.

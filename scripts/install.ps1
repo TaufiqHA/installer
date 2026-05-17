@@ -123,6 +123,11 @@ NODE_ENV=production
 
 # ── 5. npm install ──────────────────────────────────────────
 function Run-NpmInstall {
+    if (-not (Test-Path "$InstallDir\package.json")) {
+        Log "File package.json tidak ditemukan di $InstallDir. Melewati proses npm install."
+        return
+    }
+
     Log "Menjalankan npm install di $InstallDir ..."
     Push-Location $InstallDir
     try {
