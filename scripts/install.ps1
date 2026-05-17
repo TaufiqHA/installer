@@ -185,3 +185,6 @@ if ($UpdateMode) {
 Log ""
 Ok "Semua proses selesai!"
 Log "Akses aplikasi di: http://localhost:$AppPort"
+
+# Hentikan pencatatan log
+Stop-Transcript

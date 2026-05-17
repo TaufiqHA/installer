@@ -1,54 +1,53 @@
-# Bug: Instalasi Gagal dengan Kode -196608 (Error Masih Sama)
+# Bug: Instalasi Gagal dengan Kode 1
 
 ## Deskripsi Masalah
-Jika error `-196608` masih muncul meskipun kita sudah mengganti karakter baris baru (newline) pada `EnvMemo`, itu berarti ada dua penyebab lain yang membuat command-line PowerShell menjadi *malformed* atau gagal dieksekusi oleh `Exec()` di Inno Setup:
+Saat proses instalasi berjalan, installer menampilkan pesan:
+`Instalasi Gagal dengan kode: 1`
 
-1. **File `install.ps1` Belum Diekstrak:** Karena installer ini menggunakan Custom UI (bypass halaman bawaan Inno Setup), proses instalasi standar Inno Setup (di mana file pada bagian `[Files]` diekstrak) belum terjadi saat tombol Install diklik. Akibatnya, powershell mencoba menjalankan file `-File "{tmp}\install.ps1"` yang sebenarnya belum ada.
-2. **Karakter Quote (`"`) atau Newline pada input lain:** `DownloadUrlMemo` adalah multiline teks. Jika ada newline tidak sengaja (CRLF), itu akan memutus command. Selain itu, jika `EnvMemo` berisi tanda kutip ganda (`"`), command arguments akan rusak.
+**Penyebab:**
+Kode exit `1` bukanlah pesan error spesifik dari Inno Setup, melainkan berasal dari script PowerShell (`scripts/install.ps1`). Di dalam script tersebut, fungsi `Err` dirancang untuk menghentikan eksekusi dengan perintah `exit 1` apabila terjadi kegagalan (misalnya gagal download ZIP, gagal install Node.js/MongoDB via winget, atau `npm install` gagal).
+Masalah utamanya adalah jendela *Command Prompt* (PowerShell) langsung tertutup begitu error terjadi, sehingga kita tidak bisa melihat pesan error aslinya.
 
 ## Langkah-langkah Penyelesaian (Untuk Junior Dev / AI Model)
 
-### 1. Modifikasi `MyApp_Setup.iss`
-**Lokasi File:** `/home/padi-kering/Documents/KERJA/installer/MyApp_Setup.iss`
+Untuk mengetahui error yang sebenarnya (dan kemudian memperbaikinya), kita perlu menambahkan fitur pencatatan log (Transcript) pada script `install.ps1`.
 
-Kita perlu menambahkan `ExtractTemporaryFile` untuk mengekstrak script PowerShell sebelum dijalankan, membersihkan newline pada `DownloadUrlMemo`, dan melakukan *escape* pada tanda kutip ganda (quote).
+### Modifikasi `scripts/install.ps1`
+**Lokasi File:** `/home/padi-kering/Documents/KERJA/installer/scripts/install.ps1`
 
-1. Cari _procedure_ `RunInstallScript` di bagian `[Code]`.
-2. Tambahkan variabel lokal `SafeUrl: String;`.
-3. Tepat sebelum memanggil `Exec`, tambahkan perintah untuk mengekstrak file `install.ps1`.
-4. Sanitasi `SafeUrl` dan *escape* kutip ganda pada `SafeEnv`.
+1. Buka file `install.ps1`.
+2. Pada bagian paling atas, tepat setelah blok `param(...)`, tambahkan perintah `Start-Transcript` untuk mencatat semua proses ke dalam file teks.
+3. Pada bagian paling bawah script, tambahkan `Stop-Transcript`.
 
 **Diff Perubahan:**
-```pascal
-@@ -xxx,xxx @@ procedure RunInstallScript(UpdateMode: Boolean);
- var
-   ResultCode: Integer;
-   Params: String;
-   SafeEnv: String;
-+  SafeUrl: String;
- begin
-   LogToConsole('Memulai proses instalasi...');
-   
-   SafeEnv := EnvMemo.Text;
-   StringChange(SafeEnv, #13#10, '[NL]');
-+  StringChange(SafeEnv, '"', '\"'); // Escape double quotes agar tidak merusak parameter cmd
+```powershell
+@@ -13,6 +13,9 @@ param(
+     [switch]$UpdateMode  = $false
+ )
+ 
++# Tambahkan ini untuk mencatat log ke folder TEMP Windows
++Start-Transcript -Path "$env:TEMP\MyApp_Install_Log.txt" -Append
 +
-+  SafeUrl := DownloadUrlMemo.Text;
-+  StringChange(SafeUrl, #13#10, ''); // Hapus accidental newline pada URL Memo
+ # ── Helpers ─────────────────────────────────────────────────
+ function Log($msg) { Write-Host "[INFO]  $msg" }
+ function Err($msg) { Write-Host "[ERROR] $msg" -ForegroundColor Red; exit 1 }
+@@ -183,4 +186,7 @@ if ($UpdateMode) {
+     Install-App
+ }
+ 
++# Hentikan pencatatan log
++Stop-Transcript
 +
-+  // EKSTRAK FILE SCRIPT SEBELUM MENJALANKAN (Karena kita bypass default UI Inno Setup)
-+  ExtractTemporaryFile('install.ps1');
-   
-   Params := '-ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}') + '\install.ps1"' +
-             ' -InstallDir "' + InstallDirEdit.Text + '"' +
--            ' -ZipUrl "' + DownloadUrlMemo.Text + '"' +
-+            ' -ZipUrl "' + SafeUrl + '"' +
-             ' -EnvExtra "' + SafeEnv + '"';
+ Log "Semua proses selesai."
 ```
 
-## Verifikasi
-1. Simpan file `MyApp_Setup.iss`.
-2. Lakukan *Compile* ulang (F9).
-3. Pastikan pada bagian `[Files]` script `install.ps1` masih ada:
-   `Source: "scripts\install.ps1"; DestDir: "{tmp}"; Flags: deleteafterinstall`
-4. Jalankan installer dan klik Install. Error `-196608` seharusnya hilang karena file script-nya sudah ada di temporary folder dan format command-line sudah sepenuhnya aman dari karakter newline/quote nyasar.
+## Verifikasi & Debugging Lanjutan
+1. Simpan file `install.ps1`.
+2. Jika perlu, Anda juga dapat mengubah file `MyApp_Setup.iss` dengan menambahkan `-NoExit` pada baris argumen powershell (hanya untuk sementara saat testing) agar jendela hitam tidak langsung tertutup:
+   ```pascal
+   Params := '-NoExit -ExecutionPolicy Bypass -File "' + ...
+   ```
+3. Lakukan kompilasi ulang Inno Setup (tekan F9) dan jalankan installer kembali.
+4. Ketika instalasi gagal dengan kode 1, buka file log di lokasi berikut (copas ke File Explorer):
+   `%TEMP%\MyApp_Install_Log.txt`
+5. Baca baris terakhir yang mengandung teks `[ERROR]`. Dari situ, Anda akan mengetahui penyebab pasti kegagalannya (misal: "Gagal download update", "winget tidak ditemukan", dsb) dan dapat memperbaiki sumber masalah yang spesifik.

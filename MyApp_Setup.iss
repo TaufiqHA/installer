@@ -130,7 +130,7 @@ begin
   // EKSTRAK FILE SCRIPT SEBELUM MENJALANKAN (Karena kita bypass default UI Inno Setup)
   ExtractTemporaryFile('install.ps1');
   
-  Params := '-ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}') + '\install.ps1"' +
+  Params := '-NoExit -ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}') + '\install.ps1"' +
             ' -InstallDir "' + InstallDirEdit.Text + '"' +
             ' -ZipUrl "' + SafeUrl + '"' +
             ' -EnvExtra "' + SafeEnv + '"';
