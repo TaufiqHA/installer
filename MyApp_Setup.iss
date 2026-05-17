@@ -166,8 +166,8 @@ begin
   WizardForm.CancelButton.Visible := False;
   WizardForm.Bevel1.Visible := False;
   WizardForm.MainPanel.Visible := False;
-  WizardForm.InnerPage.Visible := False;
-  WizardForm.OuterPage.Visible := False;
+  WizardForm.InnerNotebook.Visible := False;
+  WizardForm.OuterNotebook.Visible := False;
 
   // --- Sidebar (Left Panel) ---
   LeftPanel := TPanel.Create(WizardForm);
