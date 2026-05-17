@@ -116,15 +116,23 @@ var
   ResultCode: Integer;
   Params: String;
   SafeEnv: String;
+  SafeUrl: String;
 begin
   LogToConsole('Memulai proses instalasi...');
   
   SafeEnv := EnvMemo.Text;
   StringChange(SafeEnv, #13#10, '[NL]');
+  StringChange(SafeEnv, '"', '\"'); // Escape double quotes agar tidak merusak parameter cmd
+  
+  SafeUrl := DownloadUrlMemo.Text;
+  StringChange(SafeUrl, #13#10, ''); // Hapus accidental newline pada URL Memo
+
+  // EKSTRAK FILE SCRIPT SEBELUM MENJALANKAN (Karena kita bypass default UI Inno Setup)
+  ExtractTemporaryFile('install.ps1');
   
   Params := '-ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}') + '\install.ps1"' +
             ' -InstallDir "' + InstallDirEdit.Text + '"' +
-            ' -ZipUrl "' + DownloadUrlMemo.Text + '"' +
+            ' -ZipUrl "' + SafeUrl + '"' +
             ' -EnvExtra "' + SafeEnv + '"';
             
   if UpdateMode then

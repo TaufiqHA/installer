@@ -1,23 +1,22 @@
-# Bug: Instalasi Gagal dengan Kode -196608
+# Bug: Instalasi Gagal dengan Kode -196608 (Error Masih Sama)
 
 ## Deskripsi Masalah
-Saat installer berjalan dan mengeksekusi script instalasi, muncul pesan error:
-`Instalasi Gagal dengan kode: -196608`
+Jika error `-196608` masih muncul meskipun kita sudah mengganti karakter baris baru (newline) pada `EnvMemo`, itu berarti ada dua penyebab lain yang membuat command-line PowerShell menjadi *malformed* atau gagal dieksekusi oleh `Exec()` di Inno Setup:
 
-**Penyebab:**
-Error `-196608` (atau `0xFFFD0000`) pada Inno Setup umumnya menandakan gagalnya eksekusi *command-line* akibat *arguments* yang cacat/malformed. Masalah ini terjadi karena komponen `EnvMemo` mengizinkan input teks multi-baris (multiline). Saat Inno Setup meneruskan `EnvMemo.Text` yang berisi karakter baris baru (`#13#10` / CRLF) secara langsung ke dalam parameter `Exec('powershell.exe', ...)`, format command-line menjadi rusak dan gagal diproses oleh Windows.
+1. **File `install.ps1` Belum Diekstrak:** Karena installer ini menggunakan Custom UI (bypass halaman bawaan Inno Setup), proses instalasi standar Inno Setup (di mana file pada bagian `[Files]` diekstrak) belum terjadi saat tombol Install diklik. Akibatnya, powershell mencoba menjalankan file `-File "{tmp}\install.ps1"` yang sebenarnya belum ada.
+2. **Karakter Quote (`"`) atau Newline pada input lain:** `DownloadUrlMemo` adalah multiline teks. Jika ada newline tidak sengaja (CRLF), itu akan memutus command. Selain itu, jika `EnvMemo` berisi tanda kutip ganda (`"`), command arguments akan rusak.
 
 ## Langkah-langkah Penyelesaian (Untuk Junior Dev / AI Model)
-
-Untuk memperbaiki bug ini, kita perlu mengubah (replace) karakter baris baru menjadi sebuah *placeholder* (misalnya `[NL]`) di dalam Inno Setup sebelum dieksekusi. Kemudian, pada script PowerShell, kita kembalikan `[NL]` tersebut menjadi baris baru.
 
 ### 1. Modifikasi `MyApp_Setup.iss`
 **Lokasi File:** `/home/padi-kering/Documents/KERJA/installer/MyApp_Setup.iss`
 
+Kita perlu menambahkan `ExtractTemporaryFile` untuk mengekstrak script PowerShell sebelum dijalankan, membersihkan newline pada `DownloadUrlMemo`, dan melakukan *escape* pada tanda kutip ganda (quote).
+
 1. Cari _procedure_ `RunInstallScript` di bagian `[Code]`.
-2. Tambahkan variabel lokal `SafeEnv: String;`.
-3. Copy isi `EnvMemo.Text` ke `SafeEnv`, lalu ubah karakter `#13#10` menjadi `[NL]`.
-4. Gunakan `SafeEnv` pada penyusunan `Params`.
+2. Tambahkan variabel lokal `SafeUrl: String;`.
+3. Tepat sebelum memanggil `Exec`, tambahkan perintah untuk mengekstrak file `install.ps1`.
+4. Sanitasi `SafeUrl` dan *escape* kutip ganda pada `SafeEnv`.
 
 **Diff Perubahan:**
 ```pascal
@@ -25,40 +24,31 @@ Untuk memperbaiki bug ini, kita perlu mengubah (replace) karakter baris baru men
  var
    ResultCode: Integer;
    Params: String;
-+  SafeEnv: String;
+   SafeEnv: String;
++  SafeUrl: String;
  begin
    LogToConsole('Memulai proses instalasi...');
    
-+  SafeEnv := EnvMemo.Text;
-+  StringChange(SafeEnv, #13#10, '[NL]');
+   SafeEnv := EnvMemo.Text;
+   StringChange(SafeEnv, #13#10, '[NL]');
++  StringChange(SafeEnv, '"', '\"'); // Escape double quotes agar tidak merusak parameter cmd
 +
++  SafeUrl := DownloadUrlMemo.Text;
++  StringChange(SafeUrl, #13#10, ''); // Hapus accidental newline pada URL Memo
++
++  // EKSTRAK FILE SCRIPT SEBELUM MENJALANKAN (Karena kita bypass default UI Inno Setup)
++  ExtractTemporaryFile('install.ps1');
+   
    Params := '-ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}') + '\install.ps1"' +
              ' -InstallDir "' + InstallDirEdit.Text + '"' +
-             ' -ZipUrl "' + DownloadUrlMemo.Text + '"' +
--            ' -EnvExtra "' + EnvMemo.Text + '"';
-+            ' -EnvExtra "' + SafeEnv + '"';
-```
-
-### 2. Modifikasi `scripts/install.ps1`
-**Lokasi File:** `/home/padi-kering/Documents/KERJA/installer/scripts/install.ps1`
-
-1. Cari bagian blok kode `if ($EnvExtra -ne "")` di dalam fungsi yang menangani pembuatan file `.env` (biasanya bernama `Create-Env`).
-2. Gunakan *regex replace* untuk mengubah `[NL]` kembali menjadi karakter newline (`` `n ``).
-
-**Diff Perubahan:**
-```powershell
-@@ -xxx,xxx @@ function Create-Env {
-     # ...
-     if ($EnvExtra -ne "") {
--        $content += "`n# Extra config`n$EnvExtra"
-+        $CleanEnvExtra = $EnvExtra -replace '\[NL\]', "`n"
-+        $content += "`n# Extra config`n$CleanEnvExtra"
-     }
-     # ...
+-            ' -ZipUrl "' + DownloadUrlMemo.Text + '"' +
++            ' -ZipUrl "' + SafeUrl + '"' +
+             ' -EnvExtra "' + SafeEnv + '"';
 ```
 
 ## Verifikasi
-1. Simpan kedua file yang telah diubah.
-2. Lakukan *Compile* ulang (F9) pada Inno Setup.
-3. Jalankan installer, lalu pada bagian input *Environment Variables*, isikan konfigurasi menggunakan lebih dari satu baris (multiline).
-4. Klik Install. Proses harus berjalan sukses (tidak memunculkan error `-196608`) dan pada folder tujuan instalasi, file `.env` harus terbuat dengan format baris baru yang benar sesuai input.
+1. Simpan file `MyApp_Setup.iss`.
+2. Lakukan *Compile* ulang (F9).
+3. Pastikan pada bagian `[Files]` script `install.ps1` masih ada:
+   `Source: "scripts\install.ps1"; DestDir: "{tmp}"; Flags: deleteafterinstall`
+4. Jalankan installer dan klik Install. Error `-196608` seharusnya hilang karena file script-nya sudah ada di temporary folder dan format command-line sudah sepenuhnya aman dari karakter newline/quote nyasar.
